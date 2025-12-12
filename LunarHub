@@ -1,0 +1,203 @@
+-- Lunar Pro Theme (compatível com Rayfield docs)
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local LunarTheme = {
+    TextColor = Color3.fromRGB(220, 180, 255),
+    Background = Color3.fromRGB(10, 10, 10),
+    Topbar = Color3.fromRGB(15, 15, 15),
+    Shadow = Color3.fromRGB(0, 0, 0),
+    NotificationBackground = Color3.fromRGB(12,12,12),
+    NotificationActionsBackground = Color3.fromRGB(230,230,230),
+    TabBackground = Color3.fromRGB(20,20,20),
+    TabStroke = Color3.fromRGB(28,28,28),
+    TabBackgroundSelected = Color3.fromRGB(24,24,24),
+    TabTextColor = Color3.fromRGB(220,180,255),
+    SelectedTabTextColor = Color3.fromRGB(255,255,255),
+    ElementBackground = Color3.fromRGB(18,18,18),
+    ElementBackgroundHover = Color3.fromRGB(22,22,22),
+    SecondaryElementBackground = Color3.fromRGB(14,14,14),
+    ElementStroke = Color3.fromRGB(40,40,40),
+    SecondaryElementStroke = Color3.fromRGB(35,35,35),
+    SliderBackground = Color3.fromRGB(25,25,25),
+    SliderProgress = Color3.fromRGB(235,235,235),
+    SliderStroke = Color3.fromRGB(60,60,60),
+    ToggleBackground = Color3.fromRGB(28,28,28),
+    ToggleEnabled = Color3.fromRGB(245,245,245),
+    ToggleDisabled = Color3.fromRGB(100,100,100),
+    ToggleEnabledStroke = Color3.fromRGB(200,200,200),
+    ToggleDisabledStroke = Color3.fromRGB(90,90,90),
+    ToggleEnabledOuterStroke = Color3.fromRGB(60,60,60),
+    ToggleDisabledOuterStroke = Color3.fromRGB(50,50,50),
+    DropdownSelected = Color3.fromRGB(22,22,22),
+    DropdownUnselected = Color3.fromRGB(16,16,16),
+    InputBackground = Color3.fromRGB(18,18,18),
+    InputStroke = Color3.fromRGB(58,58,58),
+    PlaceholderColor = Color3.fromRGB(150,150,160),
+    Section = Color3.fromRGB(12,12,12),
+    SectionText = Color3.fromRGB(200,160,240),
+}
+
+local Window = Rayfield:CreateWindow({
+    Name = "Lunar Hub",
+    LoadingTitle = "Carregando Lunar...",
+    LoadingSubtitle = "Lunar Pro",
+    Theme = LunarTheme,
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "LunarHubConfig",
+        FileName = "LunarUI"
+    }
+})
+
+Rayfield:LoadConfiguration()
+
+-------------------------------------------------
+-- SISTEMA AUTO-RUN
+-------------------------------------------------
+
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local Players = game:GetService("Players")
+
+local LocalPlayer = Players.LocalPlayer
+
+local AutoRunEnabled = false
+local ToggleKey = Enum.KeyCode.F -- tecla padrão
+local isShiftPressed = false
+local movementKeys = {
+    [Enum.KeyCode.W] = false,
+    [Enum.KeyCode.A] = false,
+    [Enum.KeyCode.S] = false,
+    [Enum.KeyCode.D] = false
+}
+
+local beganConn, endedConn, keyToggleConn
+
+local function pressShift()
+    if not isShiftPressed then
+        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.LeftShift, false, game)
+        isShiftPressed = true
+    end
+end
+
+local function releaseShift()
+    if isShiftPressed then
+        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.LeftShift, false, game)
+        isShiftPressed = false
+    end
+end
+
+local function stopAutoRun()
+    if beganConn then beganConn:Disconnect() end
+    if endedConn then endedConn:Disconnect() end
+    releaseShift()
+    for k in pairs(movementKeys) do movementKeys[k] = false end
+end
+
+local function startAutoRun()
+    stopAutoRun()
+
+    beganConn = UserInputService.InputBegan:Connect(function(input, gp)
+        if gp then return end
+        if movementKeys[input.KeyCode] ~= nil then
+            movementKeys[input.KeyCode] = true
+
+            local other = false
+            for k,v in pairs(movementKeys) do
+                if v and k ~= input.KeyCode then
+                    other = true
+                    break
+                end
+            end
+
+            if not other then pressShift() end
+        end
+    end)
+
+    endedConn = UserInputService.InputEnded:Connect(function(input)
+        if movementKeys[input.KeyCode] ~= nil then
+            movementKeys[input.KeyCode] = false
+
+            local still = false
+            for _,v in pairs(movementKeys) do if v then still = true break end end
+
+            if not still then releaseShift() end
+        end
+    end)
+end
+
+-------------------------------------------------
+-- UI
+-------------------------------------------------
+
+local Tab = Window:CreateTab("Auto Sprint")
+Tab:CreateSection("Configuração")
+
+-- Toggle principal
+Tab:CreateToggle({
+    Name = "Auto Run (Shift Automático)",
+    CurrentValue = false,
+    Flag = "AutoRunToggle",
+    Callback = function(v)
+        AutoRunEnabled = v
+        if v then
+            startAutoRun()
+        else
+            stopAutoRun()
+        end
+    end
+})
+
+-- Caixa de texto para escolher tecla
+Tab:CreateInput({
+    Name = "Tecla para Ligar/Desligar",
+    PlaceholderText = "ex: F, Q, E, V...",
+    RemoveTextAfterFocusLost = false,
+    Callback = function(text)
+        text = string.upper(text)
+
+        local success, key = pcall(function()
+            return Enum.KeyCode[text]
+        end)
+
+        if success and key then
+            ToggleKey = key
+
+            Rayfield:Notify({
+                Title = "Tecla Alterada",
+                Content = "Agora a tecla é: " .. text,
+                Duration = 3,
+            })
+        else
+            Rayfield:Notify({
+                Title = "Erro",
+                Content = "Tecla inválida!",
+                Duration = 3,
+            })
+        end
+    end
+})
+
+-- Sistema que detecta a tecla escolhida
+keyToggleConn = UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
+    if input.KeyCode == ToggleKey then
+        AutoRunEnabled = not AutoRunEnabled
+
+        if AutoRunEnabled then
+            startAutoRun()
+            Rayfield:Notify({
+                Title = "AutoRun",
+                Content = "Ativado!",
+                Duration = 2
+            })
+        else
+            stopAutoRun()
+            Rayfield:Notify({
+                Title = "AutoRun",
+                Content = "Desativado!",
+                Duration = 2
+            })
+        end
+    end
+end)
